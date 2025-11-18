@@ -13,6 +13,9 @@ from rich.table import Table
 from rich.live import Live
 from rich import box
 from datetime import datetime
+import subprocess
+import re
+import platform
 
 
 console = Console()
@@ -71,6 +74,42 @@ def get_temperatures():
     return temps
 
 
+def get_mac_temperatures():
+    """Get CPU temperature on Mac using osx-cpu-temp."""
+    temps = {}
+    try:
+        result = subprocess.run(
+            ['osx-cpu-temp'],
+            capture_output=True,
+            text=True,
+            timeout=2
+        )
+        
+        # Output is like: "61.8°C"
+        match = re.search(r'(\d+\.\d+)', result.stdout)
+        if match:
+            temps['cpu'] = float(match.group(1))
+        
+    except Exception:
+        pass
+    
+    return temps
+
+
+def get_system_temperatures():
+    """Get system temperatures based on the operating system."""
+    system = platform.system()
+    
+    if system == "Darwin":  # macOS
+        return get_mac_temperatures()
+    elif system == "Linux":
+        return get_temperatures()
+    elif system == "Windows":
+        return get_temperatures()
+    else:
+        return {}
+
+
 def get_network_stats():
     """Get network throughput stats."""
     try:
@@ -108,7 +147,7 @@ def create_control_panel():
     bytes_sent, bytes_recv = get_network_stats()
     
     battery_percent, is_plugged = get_battery_info()
-    temps = get_temperatures()
+    temps = get_system_temperatures()  # Use the OS-aware function
     
     # Create layout
     layout = Layout()
@@ -138,7 +177,7 @@ def create_control_panel():
     
     # Per-core CPU
     for i, core_percent in enumerate(per_cpu[:8]):  # Show up to 8 cores
-        left_table.add_row(f"  Core {i}", create_ascii_gauge(core_percent, width=15))
+        left_table.add_row(f"  Core {i+1}", create_ascii_gauge(core_percent, width=15))
     
     if len(per_cpu) > 8:
         left_table.add_row("", f"[dim]... and {len(per_cpu) - 8} more cores[/dim]")
